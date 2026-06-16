@@ -1,35 +1,19 @@
-import serverlessExpress from '@codegenie/serverless-express';
 import { createConfiguredApp } from '../src/app.factory';
+import type { IncomingMessage, ServerResponse } from 'http';
 
-type VercelHandler = (
-  req: unknown,
-  res: unknown,
-  next?: (err?: unknown) => void,
-) => Promise<void> | void;
+let cachedApp: any = null;
 
-let cachedHandler: VercelHandler | null = null;
-
-console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
-
-async function getHandler(): Promise<VercelHandler> {
-  if (cachedHandler) {
-    return cachedHandler;
-  }
+async function getApp() {
+  if (cachedApp) return cachedApp;
 
   const app = await createConfiguredApp();
   await app.init();
 
-  const expressApp = app.getHttpAdapter().getInstance();
-  cachedHandler = serverlessExpress({
-    app: expressApp,
-  }) as VercelHandler;
-
-  return cachedHandler;
+  cachedApp = app.getHttpAdapter().getInstance();
+  return cachedApp;
 }
 
-export default async function handler(req: unknown, res: unknown) {
-  const serverHandler = await getHandler();
-  return serverHandler(req, res, (err: unknown) => {
-    if (err) throw err;
-  });
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  const app = await getApp();
+  app(req, res);
 }
