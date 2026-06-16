@@ -9,6 +9,8 @@ type VercelHandler = (
 
 let cachedHandler: VercelHandler | null = null;
 
+console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
+
 async function getHandler(): Promise<VercelHandler> {
   if (cachedHandler) {
     return cachedHandler;
