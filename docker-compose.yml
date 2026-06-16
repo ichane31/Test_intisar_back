@@ -1,0 +1,25 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - '27017:27017'
+    volumes:
+      - intisar_mongo_data:/data/db
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/intisar_admin
+      JWT_SECRET: ${JWT_SECRET:-dev-change-me-use-long-secret-in-production}
+      PORT: 3001
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      - mongo
+
+volumes:
+  intisar_mongo_data:

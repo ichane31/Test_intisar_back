@@ -1,0 +1,731 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         String
+  phone        String?
+  avatar       String?
+  status       String    @default("active")
+  lastLogin    DateTime?
+
+  // Champs 2FA
+  twoFactorEnabled Boolean   @default(false)
+  twoFactorSecret  String?   // Clé secrète TOTP
+  twoFactorBackupCodes String? // Codes de secours (JSON)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admin_users")
+}
+
+/// Canonical travel package (Omra / Hajj / combine) — single aggregate per docs/07
+model OmraPack {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug             String    @unique
+  title            String
+  tripType         String    @default("omra")
+  description      String
+  shortDescription String?
+  status           String
+  departureDate    DateTime?
+  returnDate       DateTime?
+  duration         Int
+  departureCity    String?
+  basePrice        Float
+  promoPrice       Float?
+  totalSeats       Int
+  availableSeats   Int
+  featured         Boolean   @default(false)
+  hotelSummary     String
+  hotelRating      Float
+  services         String[]
+  images           String[]
+  inclusions       String[]
+  exclusions       String[]
+  program          Json?
+  hotels           Json?
+  flights          Json?
+  pricingOptions   Json?
+  seoTitle         String?
+  seoDescription   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("omra_packs")
+  @@index([status])
+  @@index([tripType])
+}
+
+model SpecialOffer {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  title              String
+  description        String
+  originalPrice      Float
+  discountedPrice    Float
+  discountPercentage Float
+  packId             String
+  validFrom          DateTime
+  validTo            DateTime
+  status             String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("special_offers")
+  @@index([packId])
+}
+
+model CustomOffer {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientId      String
+  clientName    String
+  requirements  String
+  proposedPrice Float?
+  status        String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("custom_offers")
+}
+
+model ProductCategory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String   @unique
+  description String?
+  parentId    String?
+  image       String?
+  order       Int
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("product_categories")
+}
+
+model Product {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  slug         String   @unique
+  description  String
+  price        Float
+  stock        Int
+  minStock     Int      @default(0)
+  maxStock     Int?
+  categoryId   String
+  categoryName String
+  images       String[]
+  status       String
+  sku          String?
+  weight       Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("products")
+  @@index([categoryId])
+}
+
+model StockMovement {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String
+  productName String
+  type        String
+  quantity    Int
+  reason      String
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@map("stock_movements")
+  @@index([productId])
+}
+
+model ShopOrder {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber     String   @unique
+  clientId        String
+  clientName      String
+  clientEmail     String
+  items           Json
+  totalAmount     Float
+  status          String
+  shippingAddress String
+  paymentMethod   String
+  paymentStatus   String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("shop_orders")
+}
+
+model OmraReservation {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  reservationNumber   String   @unique
+  clientId            String
+  clientName          String
+  clientEmail         String
+  clientPhone         String
+  packId              String
+  packTitle           String
+  numberOfPeople      Int
+  totalAmount         Float
+  status              String
+  paymentStatus       String
+  paidAmount          Float
+  departureDate       DateTime
+  notes               String?
+  /// Code parrainage validé (max −1000 MAD cumulé côté métier)
+  referralCodeUsed    String?
+  referralDiscountMAD Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("omra_reservations")
+  @@index([packId])
+}
+
+model Client {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  firstName      String
+  lastName       String
+  email          String    @unique
+  phone          String
+  address        String?
+  city           String?
+  country        String?
+  /// Code parrainage (INTISAR-PRENOM-XXXX). Unicité appliquée côté métier — MongoDB
+  /// n’autorise qu’un seul `null` avec `@unique`, d’où index non-unique + contrôle en service.
+  referralCode   String?
+  totalOrders    Int       @default(0)
+  totalSpent     Float     @default(0)
+  lastOrderDate  DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("clients")
+  @@index([referralCode])
+}
+
+/// Devis commercial (PDF, email) — INTISAR
+model Quote {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  numero         String    @unique
+  clientNom      String
+  clientEmail    String
+  clientTel      String
+  clientVille    String?
+  packId         String
+  packTitle      String?
+  nbPersonnes    Int
+  dateDepart     DateTime?
+  montantTotal   Float     @default(0)
+  remiseType     String?   @default("montant")
+  remiseValeur   Float?    @default(0)
+  remise         Float     @default(0)
+  montantFinal   Float     @default(0)
+  statut         String    @default("en_attente")
+  pdfUrl         String?
+  notes          String?
+  validiteJours  Int       @default(7)
+  leadId         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([clientEmail])
+  @@index([statut])
+  @@index([packId])
+}
+
+/// Filleulage / parrainage — INTISAR
+model Referral {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  parrainId          String
+  parrainNom         String?   
+  parrainCode        String    @unique
+  parrainEmail       String?
+  parrainTel         String?
+  
+  filleulId          String?
+  filleulNom         String?
+  filleulEmail       String?
+  filleulTel         String?
+  
+  reservationId      String?
+  reservationMontant Float?
+  
+  statut             ReferralStatut @default(en_attente)
+  reductionMAD       Float     @default(500)
+  reductionUtilisee  Boolean   @default(false)
+  
+  dateParrainage     DateTime  @default(now())
+  dateUtilisation    DateTime?
+  dateValidation     DateTime?
+  dateRecompense     DateTime?
+  dateExpiration     DateTime?
+  
+  notes              String?
+  ipAddress          String?
+  userAgent          String?
+  
+  createdAt          DateTime?  @default(now())
+  updatedAt          DateTime?  @updatedAt
+
+  @@map("referrals")
+  @@index([parrainId])      // Un seul index sur parrainId
+  @@index([statut])
+  @@index([filleulId])
+  @@index([dateParrainage])
+}
+
+enum ReferralStatut {
+  en_attente
+  utilise
+  valide
+  recompense
+  expire
+  annule
+}
+
+model Lead {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  firstName          String
+  lastName           String
+  email              String
+  phone              String?
+  source             String
+  interest           String
+  status             String
+  score              Int?
+  assignedTo         String?
+  notes              String?
+  lastContactAt      DateTime?
+  convertedClientId  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("leads")
+  @@index([status])
+  @@index([source])
+}
+
+model SupportRequest {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  type        String
+  clientName  String
+  clientEmail String?
+  clientPhone String?
+  subject     String
+  message     String
+  status      String
+  assignedTo  String?
+  response    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("support_requests")
+  @@index([type])
+  @@index([status])
+}
+
+model MediaFile {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  type       String
+  url        String
+  size       Int
+  mimeType   String
+  tags       String[]
+  alt        String?
+  folder     String?
+  width      Int?
+  height     Int?
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@map("media_files")
+  @@index([folder])
+}
+
+/// Operational document: KYC, invoices linked to client/order (docs/07)
+model Document {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  type       String
+  clientId   String?
+  clientName String?
+  orderId    String?
+  url        String
+  status     String
+  notes      String?
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@map("documents")
+}
+
+/// Internal library / templates (docs/07) — NOT client KYC
+model LibraryDocument {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  slug        String?
+  category    String
+  fileName    String
+  url         String
+  mimeType    String
+  fileSize    Int
+  version     String
+  status      String
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("library_documents")
+  @@index([category])
+  @@index([status])
+}
+
+model ComparatorConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("default")
+  features  Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comparator_config")
+}
+
+/// Tableau comparateur admin (services × packs) — isolé de `ComparatorConfig` / site public.
+model ComparateurMatrixConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("default")
+  payload   Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comparateur_matrix_config")
+}
+
+/// Configuration CMS de la page publique « Omra sur mesure » (document singleton JSON).
+model OmraSurMesureConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("default")
+  payload   Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("omra_sur_mesure_config")
+}
+
+model HistoryEntry {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String
+  userName   String
+  action     String
+  entityType String
+  entityId   String
+  entityName String
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("history_entries")
+}
+
+model SystemLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  level     String
+  message   String
+  source    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@map("system_logs")
+}
+
+model Page {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  title          String
+  slug           String   @unique
+  content        String
+  images         String[]
+  seoTitle       String?
+  seoDescription String?
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("pages")
+}
+
+model Section {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  pageId    String
+  title     String
+  content   String
+  order     Int
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sections")
+  @@index([pageId])
+}
+
+model Faq {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  question  String
+  answer    String
+  category  String
+  order     Int
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("faqs")
+}
+
+model BlogPost {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  slug        String    @unique
+  excerpt     String
+  content     String
+  coverImage  String?
+  author      String
+  tags        String[]
+  status      String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("blog_posts")
+}
+
+model Guide {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  slug      String   @unique
+  content   String
+  category  String
+  images    String[]
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("guides")
+}
+
+model LegalContent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  slug      String   @unique
+  content   String
+  type      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("legal_content")
+}
+
+model Testimonial {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientName  String
+  clientPhoto String
+  tripType    String
+  rating      Int
+  content     String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("testimonials")
+}
+
+model GlobalSettings {
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  siteName         String
+  siteEmail        String
+  sitePhone        String
+  currency         String  @default("MAD")
+  timezone         String  @default("Africa/Casablanca")
+  maintenanceMode  Boolean @default(false)
+  siteDescription  String?
+  companyAddress   String?
+  defaultLanguage  String?
+
+  @@map("global_settings")
+}
+
+/// Patch JSON homepage publique (fusionné côté front avec les valeurs statiques par défaut).
+model HomepagePublicConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("default")
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("homepage_public_config")
+}
+
+// --- Payment platform (checkout / PSP) — collections isolées, désactivé côté API par défaut ---
+
+/// Commande « commerce » unifiée (Omra pack, acompte, boutique future). Statuts métier distincts du paiement.
+model PaymentPlatformOrder {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber      String    @unique
+  /// pending | confirmed | fulfilled | cancelled
+  status           String
+  /// pending | success | failed | refunded | partial
+  paymentStatus    String
+  currency         String    @default("MAD")
+  subtotalAmount   Float
+  discountAmount   Float     @default(0)
+  promoCode        String?
+  taxAmount        Float     @default(0)
+  totalAmount      Float
+  paidAmount       Float     @default(0)
+  /// full | deposit | balance (acompte / solde)
+  payableMode      String    @default("full")
+  /// Lignes panier: Omra pack, produits shop, etc. (JSON libre)
+  lines            Json
+  clientId         String?   @db.ObjectId
+  clientEmail      String?
+  clientName       String?
+  clientPhone      String?
+  linkedOmraPackId String?   @db.ObjectId
+  metadata         Json?
+  createdByAdminId String?   @db.ObjectId
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  payments      PaymentPlatformPayment[]
+  transactions  PaymentPlatformTransaction[]
+  invoices      PaymentPlatformInvoice[]
+  notifications PaymentPlatformNotification[]
+
+  @@map("payment_platform_orders")
+  @@index([clientId])
+  @@index([status])
+  @@index([paymentStatus])
+}
+
+/// Paiement lié à une commande (une tentative ou un flux provider).
+model PaymentPlatformPayment {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId            String   @db.ObjectId
+  /// stripe | paypal | cmi
+  provider           String
+  /// pending | success | failed | refunded | partial
+  status             String
+  amount             Float
+  currency           String
+  providerIntentId   String?
+  providerCheckoutId String?
+  clientSecret       String?
+  idempotencyKey     String?
+  lastProviderPayload Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  order         PaymentPlatformOrder         @relation(fields: [orderId], references: [id])
+  transactions  PaymentPlatformTransaction[]
+
+  @@map("payment_platform_payments")
+  @@index([orderId])
+  @@index([provider, providerIntentId])
+}
+
+/// Mouvement financier (autorisation, capture, remboursement partiel / total).
+model PaymentPlatformTransaction {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String   @db.ObjectId
+  paymentId       String?  @db.ObjectId
+  /// auth | capture | refund | void
+  type            String
+  /// pending | success | failed
+  status          String
+  amount          Float
+  currency        String
+  provider        String
+  providerTxnId   String?
+  description     String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  order   PaymentPlatformOrder          @relation(fields: [orderId], references: [id])
+  payment PaymentPlatformPayment?       @relation(fields: [paymentId], references: [id])
+
+  @@map("payment_platform_transactions")
+  @@index([orderId])
+  @@index([paymentId])
+}
+
+/// Facture PDF / numérotation unique (indépendante des devis Quote).
+model PaymentPlatformInvoice {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId       String    @db.ObjectId
+  invoiceNumber String    @unique
+  /// draft | issued | void
+  status        String
+  currency      String
+  totalAmount   Float
+  /// URL stockage objet ou clé S3 — génération PDF à la demande si null
+  pdfRef        String?
+  issuedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  order PaymentPlatformOrder @relation(fields: [orderId], references: [id])
+
+  @@map("payment_platform_invoices")
+  @@index([orderId])
+}
+
+/// Idempotency-Key HTTP (création / confirmation paiement).
+model PaymentIdempotencyRecord {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  key            String    @unique
+  /// create_payment | confirm_payment | create_order
+  scope          String
+  requestHash    String?
+  responseBody   Json
+  httpStatus     Int
+  createdAt      DateTime @default(now())
+
+  @@map("payment_idempotency_records")
+  @@index([scope])
+}
+
+/// Historique notifications client (email / SMS) — stub prêt pour fournisseur réel.
+model PaymentPlatformNotification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  channel   String
+  template  String
+  payload   Json?
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  order PaymentPlatformOrder @relation(fields: [orderId], references: [id])
+
+  @@map("payment_platform_notifications")
+  @@index([orderId])
+}
