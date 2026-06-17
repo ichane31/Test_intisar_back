@@ -70,13 +70,57 @@ export class AuthController {
     };
   }
 
+  // @Get('me')
+  // me(@CurrentUser() user: JwtUser | undefined) {
+  //   if (!user) return { user: null };
+  //   return {
+  //     user: {
+  //       ...user,
+  //       permissions: [...(ROLE_PERMISSIONS[user.role] ?? [])],
+  //     },
+  //   };
+  // }
+
   @Get('me')
-  me(@CurrentUser() user: JwtUser | undefined) {
+  async me(@CurrentUser() user: JwtUser | undefined) {
     if (!user) return { user: null };
+    
+    // Récupérer l'utilisateur complet avec toutes les informations
+    const fullUser = await this.auth['prisma'].adminUser.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatar: true,
+        phone: true,
+        twoFactorEnabled: true,
+        status: true,
+        createdAt: true,
+        lastLogin: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!fullUser) {
+      return { user: null };
+    }
+
     return {
       user: {
-        ...user,
-        permissions: [...(ROLE_PERMISSIONS[user.role] ?? [])],
+        id: fullUser.id,
+        email: fullUser.email,
+        name: fullUser.name,
+        role: fullUser.role,
+        avatar: fullUser.avatar ?? undefined,
+        phone: fullUser.phone ?? undefined,
+        twoFactorEnabled: fullUser.twoFactorEnabled,
+        status: fullUser.status,
+        createdAt: fullUser.createdAt,
+        lastLogin: fullUser.lastLogin,
+        updatedAt: fullUser.updatedAt,
+        permissions: [...(ROLE_PERMISSIONS[fullUser.role] ?? [])],
       },
     };
   }

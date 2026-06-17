@@ -70,8 +70,16 @@ export class TwoFactorEnableResponseDto {
 export class TwoFactorVerifyResponseDto {
   valid!: boolean;
   accessToken?: string;
-  userId?: string;
   message?: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    avatar?: string;
+    phone?: string;
+    twoFactorEnabled?: boolean;
+  };
 }
 
 export class TwoFactorDisableResponseDto {
